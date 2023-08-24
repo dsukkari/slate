@@ -394,12 +394,14 @@ void permuteRowsCols(
 template <Target target=Target::HostTask, typename scalar_t>
 void add(scalar_t alpha, Matrix<scalar_t>&& A,
          scalar_t beta,  Matrix<scalar_t>&& B,
-         int priority=0, int queue_index=0);
+         int priority=0, int queue_index=0,
+         Options const& opts = Options());
 
 template <Target target=Target::HostTask, typename scalar_t>
 void add(scalar_t alpha, BaseTrapezoidMatrix<scalar_t>&& A,
          scalar_t beta,  BaseTrapezoidMatrix<scalar_t>&& B,
-         int priority=0, int queue_index=0);
+         int priority=0, int queue_index=0,
+         Options const& opts = Options());
 
 //------------------------------------------------------------------------------
 // Bidiagonal band reduction
@@ -620,6 +622,14 @@ void unmlq(Side side, Op op,
 // unmtr_hb2st()
 template <Target target=Target::HostTask, typename scalar_t>
 void unmtr_hb2st(Side side, Op op,
+                 Matrix<scalar_t>& V,
+                 Matrix<scalar_t>& C,
+                 const std::map<Option, Value>& opts);
+
+//-----------------------------------------
+// unmbr_tb2bd()
+template <Target target=Target::HostTask, typename scalar_t>
+void unmbr_tb2bd(Side side, Op op,
                  Matrix<scalar_t>& V,
                  Matrix<scalar_t>& C,
                  const std::map<Option, Value>& opts);

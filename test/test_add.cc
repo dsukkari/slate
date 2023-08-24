@@ -190,6 +190,7 @@ void test_add_work(Params& params, bool run)
     bool ref = params.ref() == 'y' || ref_only;
     bool check = params.check() == 'y' && ! ref_only;
     bool trace = params.trace() == 'y';
+    bool hold_local_workspace = params.hold_local_workspace() == 'y';
     slate::Origin origin = params.origin();
     slate::Target target = params.target();
     params.matrix.mark();
