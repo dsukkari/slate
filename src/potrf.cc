@@ -20,6 +20,7 @@ namespace impl {
 /// Panel and lookahead computed on host using Host OpenMP task.
 /// @ingroup posv_impl
 ///
+#if 0
 template <Target target, typename scalar_t>
 void potrf(
     slate::internal::TargetType<target>,
@@ -131,15 +132,16 @@ void potrf(
     A.tileUpdateAllOrigin();
     A.releaseWorkspace();
 }
+#endif
 
 //------------------------------------------------------------------------------
 /// Distributed parallel Cholesky factorization.
 /// GPU device batched cuBLAS implementation.
 /// @ingroup posv_impl
 ///
-template <typename scalar_t>
+template <Target target, typename scalar_t>
 void potrf(
-    slate::internal::TargetType<Target::Devices>,
+    slate::internal::TargetType<target>,
     HermitianMatrix<scalar_t> A,
     Options const& opts )
 {
