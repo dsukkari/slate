@@ -190,15 +190,18 @@ void potrf(
     // for every execution for the internal::herk
     const int64_t batch_size_default = 0;
     int num_queues = 3 + lookahead;  // Number of kernels with lookahead
-    A.allocateBatchArrays( batch_size_default, num_queues );
-    A.reserveDeviceWorkspace();
-
-    // Allocate
     using lapack::device_info_int;
     std::vector< device_info_int* > device_info_array( A.num_devices(), nullptr );
-    for (int64_t dev = 0; dev < A.num_devices(); ++dev) {
-        blas::Queue* queue = A.comm_queue(dev);
-        device_info_array[dev] = blas::device_malloc<device_info_int>( 1, *queue );
+
+    if (target == Target::Devices) {
+        A.allocateBatchArrays( batch_size_default, num_queues );
+        A.reserveDeviceWorkspace();
+
+        // Allocate
+        for (int64_t dev = 0; dev < A.num_devices(); ++dev) {
+            blas::Queue* queue = A.comm_queue(dev);
+            device_info_array[dev] = blas::device_malloc<device_info_int>( 1, *queue );
+        }
     }
 
     // set min number for omp nested active parallel regions
@@ -212,9 +215,10 @@ void potrf(
             #pragma omp task depend(inout:column[k])
             {
                 // factor A(k, k)
-                internal::potrf<Target::Devices>(
-                    A.sub(k, k), priority_0, queue_2,
-                    device_info_array[ A.tileDevice( k, k ) ] );
+                internal::potrf<target>(
+                    A.sub(k, k), 1 );
+                    //A.sub(k, k), priority_0, queue_2,
+                    //device_info_array[ A.tileDevice( k, k ) ] );
 
                 // send A(k, k) down col A(k+1:nt-1, k)
                 if (k+1 <= A_nt-1)
@@ -224,7 +228,7 @@ void potrf(
                 if (k+1 <= A_nt-1) {
                     auto Akk = A.sub(k, k);
                     auto Tkk = TriangularMatrix< scalar_t >(Diag::NonUnit, Akk);
-                    internal::trsm<Target::Devices>(
+                    internal::trsm<target>(
                         Side::Right,
                         one, conj_transpose( Tkk ),
                         A.sub(k+1, A_nt-1, k, k),
@@ -240,7 +244,7 @@ void potrf(
                                             i});
                 }
 
-                A.template listBcastMT<Target::Devices>(
+                A.template listBcastMT<target>(
                   bcast_list_A, layout);
             }
 
@@ -253,7 +257,7 @@ void potrf(
                     // A(kl+1:nt-1, kl+1:nt-1) -=
                     //     A(kl+1:nt-1, k) * A(kl+1:nt-1, k)^H
                     // where kl = k + lookahead
-                    internal::herk<Target::Devices>(
+                    internal::herk<target>(
                         real_t(-1.0), A.sub(k+1+lookahead, A_nt-1, k, k),
                         real_t( 1.0), A.sub(k+1+lookahead, A_nt-1),
                         priority_0, queue_0, layout, opts2 );
@@ -271,7 +275,7 @@ void potrf(
                 {
                     // A(j, j) -= A(j, k) * A(j, k)^H
                     int queue_jk2 = j-k+2;
-                    internal::herk<Target::Devices>(
+                    internal::herk<target>(
                         real_t(-1.0), A.sub(j, j, k, k),
                         real_t( 1.0), A.sub(j, j),
                         priority_0, queue_jk2, layout, opts2 );
@@ -279,7 +283,7 @@ void potrf(
                     // A(j+1:nt, j) -= A(j+1:nt-1, k) * A(j, k)^H
                     if (j+1 <= A_nt-1) {
                         auto Ajk = A.sub(j, j, k, k);
-                        internal::gemm<Target::Devices>(
+                        internal::gemm<target>(
                             -one, A.sub(j+1, A_nt-1, k, k),
                                   conj_transpose( Ajk ),
                             one,  A.sub(j+1, A_nt-1, j, j),
@@ -309,9 +313,11 @@ void potrf(
     if (hold_local_workspace == false) {
         A.releaseWorkspace();
     }
-    for (int64_t dev = 0; dev < A.num_devices(); ++dev) {
-        blas::Queue* queue = A.comm_queue(dev);
-        blas::device_free( device_info_array[dev], *queue );
+    if (target == Target::Devices) {
+        for (int64_t dev = 0; dev < A.num_devices(); ++dev) {
+            blas::Queue* queue = A.comm_queue(dev);
+            blas::device_free( device_info_array[dev], *queue );
+        }
     }
 }
 
