@@ -215,10 +215,9 @@ void potrf(
             #pragma omp task depend(inout:column[k])
             {
                 // factor A(k, k)
-                internal::potrf<Target::HostTask>(
-                    A.sub(k, k), 1 );
-                    //A.sub(k, k), priority_0, queue_2,
-                    //device_info_array[ A.tileDevice( k, k ) ] );
+                internal::potrf<target>(
+                    A.sub(k, k), priority_0, queue_2,
+                    device_info_array[ A.tileDevice( k, k ) ] );
 
                 // send A(k, k) down col A(k+1:nt-1, k)
                 if (k+1 <= A_nt-1)
@@ -249,7 +248,7 @@ void potrf(
             }
 
             // update trailing submatrix, normal priority
-            if (k+1+lookahead < A_nt) {
+            if (target == Target::Devices && k+1+lookahead < A_nt) {
                 #pragma omp task depend(in:column[k]) \
                                  depend(inout:column[k+1+lookahead]) \
                                  depend(inout:column[A_nt-1])
@@ -289,6 +288,21 @@ void potrf(
                             one,  A.sub(j+1, A_nt-1, j, j),
                             layout, priority_0, queue_jk2, opts2 );
                     }
+                }
+            }
+
+            // update trailing submatrix, normal priority
+            if (target == Target::HostTask && k+1+lookahead < A_nt) {
+                #pragma omp task depend(in:column[k]) \
+                                 depend(inout:column[k+1+lookahead]) \
+                                 depend(inout:column[A_nt-1])
+                {
+                    // A(kl+1:nt-1, kl+1:nt-1) -=
+                    //     A(kl+1:nt-1, k) * A(kl+1:nt-1, k)^H
+                    // where kl = k + lookahead
+                    internal::herk<target>(
+                        real_t(-1.0), A.sub(k+1+lookahead, A_nt-1, k, k),
+                        real_t( 1.0), A.sub(k+1+lookahead, A_nt-1));
                 }
             }
 
@@ -382,16 +396,10 @@ void potrf(
 
     switch (target) {
         case Target::Host:
+        case Target::HostNest:
+        case Target::HostBatch:
         case Target::HostTask:
             impl::potrf( TargetType<Target::HostTask>(), A, opts );
-            break;
-
-        case Target::HostNest:
-            impl::potrf( TargetType<Target::HostNest>(), A, opts );
-            break;
-
-        case Target::HostBatch:
-            impl::potrf( TargetType<Target::HostBatch>(), A, opts );
             break;
 
         case Target::Devices:
