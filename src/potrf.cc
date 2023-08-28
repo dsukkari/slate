@@ -215,7 +215,7 @@ void potrf(
             #pragma omp task depend(inout:column[k])
             {
                 // factor A(k, k)
-                internal::potrf<target>(
+                internal::potrf<Target::HostTask>(
                     A.sub(k, k), 1 );
                     //A.sub(k, k), priority_0, queue_2,
                     //device_info_array[ A.tileDevice( k, k ) ] );
